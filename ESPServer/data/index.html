@@ -15,13 +15,13 @@
 		var lockGroup = false;
 		var limitY = 100;
 		
-		var serverAddress = "http://192.168.1.15";
+		var serverAddress = "192.168.4.1";
 		
 		var selectedGroup = "Temp. Target";
-		var groupColors = {  "Temp. Target" : "#FF0000", "Temp. Readout" : "#00FF00", "Calculated Time" : "#0000FF" };
-		var groupPointVisibility = { "Temp. Target" : true, "Temp. Readout" : false, "Calculated Time" : false };
+		var groupColors = {  "Temp. Target" : "#FF0000", "Temp. Readout" : "#00FF00" };
+		var groupPointVisibility = { "Temp. Target" : true, "Temp. Readout" : false };
 		
-		var pointsGroups = { "Temp. Target" : [], "Temp. Readout" : [], "Calculated Time" : [] };
+		var pointsGroups = { "Temp. Target" : [], "Temp. Readout" : [] };
 		var interpolation = "Linear";
 		
 		var maxClickTime = 200;
@@ -32,7 +32,7 @@
 		var tempReadTimeout = 500;
 		var lastTempReadCall;
 		var currentTime = 0;
-		var enforceSlope = true;
+		var enforceSlope = false;
 		var stop = false;
 		
 		function Initialize()
@@ -387,7 +387,7 @@
 		function Clear()
 		{
 			currentTime = 0;
-			pointsGroups = { "Temp. Target" : [], "Temp. Readout" : [], "Calculated Time" : [] };
+			pointsGroups = { "Temp. Target" : [], "Temp. Readout" : [] };
 			UpdateRenderer();
 		}
 		
@@ -403,10 +403,7 @@
 				
 				stop = true;
 				currentTime = 0;
-				
-				var tempTarget = pointsGroups["Temp. Target"];
-				pointsGroups = { "Temp. Target" : tempTarget, "Temp. Readout" : [], "Calculated Time" : [] };
-				
+				pointsGroups = { "Temp. Readout" : [] };
 				UpdateRenderer();
 			});
 		}
@@ -435,13 +432,13 @@
 				
 		function StartOven()
 		{
-			console.log("Start oven");
-			$.get(serverAddress + "/versionInfo", function(data, status) { ValidateData(data) });
+			SendData();
+			//console.log("Start oven");
+			//$.get(serverAddress + "/versionInfo", function(data, status) { ValidateData(data) });
 		}
 		
 		function ValidateData(versionInfo)
 		{
-			console.log(versionInfo.split(";")[0]);
 			var maxPoints = parseInt(versionInfo.split(";")[0]);
 			var floatSupport = (versionInfo.split(";")[1] == "1");
 			console.log("Validate data: " + maxPoints + " " + floatSupport);
@@ -449,13 +446,11 @@
 			var totalPoints = 0;
 			var foundFloatingPoint = false;
 			
-			totalPoints = pointsGroups["Temp. Target"].length;
-			
-		/*	for (var property in pointsGroups) 
+			for (var property in pointsGroups) 
 			{
 				if (pointsGroups.hasOwnProperty(property)) 
 					totalPoints += pointsGroups[property].length;
-			}*/
+			}
 
 			if (totalPoints > maxPoints)
 				alert("You have exceeded the maximum number of points your hardware supports. Please remove some of them. Limit is: " + maxPoints);
@@ -470,7 +465,7 @@
 			$.get(serverAddress + "/sendConfig?fs=" + ((enforceSlope) ? "1" : "0"), 
 				function(data, status) 
 				{ 
-					console.log("send config callback");
+				console.log("send config callback");
 					if (data != "OK")
 					{
 						alert("Sending configuration failed.");
@@ -490,13 +485,11 @@
 			{
 				var point = pointsGroups[selectedGroup][i];
 				var temp = limitY - point.Y;
-				//var adc = TemperatureToADC(temp);
+				var adc = TemperatureToADC(temp);
 				
-				dataString += ((point.X * 1000) | 0) + ";" + (temp | 0) + ";";
+				dataString += point.X + ";" + (adc | 0) + ";";
 			}
-			
 			console.log(dataString);
-			
 			$.get(serverAddress + "/start?data=" + dataString, 
 				function(data, status) 
 				{
@@ -520,21 +513,16 @@
 				{
 					var serverTime = data.split(';')[0] / 1000;
 					var adc = data.split(';')[1];
-					var ct = data.split(';')[2];
 					
-					console.log("ADC: " + adc + " Calc Time: " + ct + " Time: " + serverTime);
+					console.log("ADC: " + adc + " Time: " + serverTime);
 					
-					if ((adc == -1) || (ct == -1))
+					if (adc == -1)
 						return;
 					
 					var temperature = ADCToTemperature(adc);
-					var calcTime = ADCToTemperature(ct);
 					
 					pointsGroups["Temp. Readout"].push({X: serverTime, Y: limitY - temperature});
 					pointsGroups["Temp. Readout"].sort(function(a, b){return a.X-b.X});
-					
-					//pointsGroups["Calculated Time"].push({X: serverTime, Y: limitY - ct});
-					//pointsGroups["Calculated Time"].sort(function(a, b){return a.X-b.X});
 					
 					UpdateRenderer();
 					
@@ -596,47 +584,6 @@
 	</style>
 </head>
 <body onload="Initialize()">
-    <div data-role="dialog" id="dialog" class="padding20" data-close-button="true">
-        <h1>Settings</h1>
-		Point interpolation
-		<label class="switch">
-			<input onclick="ToggleInterpolate()" checked type="checkbox">
-			<span class="check"></span>
-		</label>
-		Snap to grid
-		<label class="switch" for="snapping">
-			<input onclick="SetSnapping();" checked id="snapping" type="checkbox">
-			<span class="check"></span>
-		</label>
-		Enforce slope
-		<label class="switch">
-			<input onclick="enforceSlope = !enforceSlope;" checked type="checkbox">
-			<span class="check"></span>
-		</label>
-    </div>
-    <script>
-        function showDialog(id)
-		{
-            var dialog = $(id).data('dialog');
-            dialog.open();
-        }
-		
-		function GenerateTempLookup()
-		{
-			var out = "{";
-			
-			for (var i=0;i<1024;i++)
-			{
-				var temp = 1 / ((Math.log((((820 * 1023) / i) - 820) / 100000) / 3950) + (1 / 298.15)) - 273.15;
-				temp *= 100;
-				//var val = (Math.acos(-i/500+1)/Math.PI)*9000;
-				out += temp.toFixed(0) + ", ";
-			}
-			
-			out += " };";
-			alert(out + "fdsf");
-		}
-    </script>
 	<canvas id="canvas"></canvas>
 	<div data-role="charm" data-position="bottom" id="free-position-charm" id="settingsPanel">
 		<div class="grid" style="margin-right:25px;">
@@ -667,7 +614,7 @@
 							<span class="title">Chart Scale</span>
 						</div>
 						<div class="content" style="height: 100px;padding:5px;">
-							<div class="content"  style="margin:auto;height: 100px;">
+							<div class="content"  style="height: 100px;">
 								Units Horizontal:
 								<div class="input-control text">
 									<input id="scaleX" type="text" onchange="UpdateScale()" value="600">
@@ -675,7 +622,14 @@
 								Units Vertical:
 								<div class="input-control text">
 									<input id="scaleY" type="text" onchange="UpdateScale()" value="300">
-								</div>			
+								</div>
+								<div style="margin-right:0;margin-left:auto;width:130px;">
+									Snap to grid
+									<label class="switch">
+										<input onclick="SetSnapping()" checked id="snapping" type="checkbox">
+										<span class="check"></span>
+									</label>
+								</div>
 							</div>
 						</div>
 					</div>
@@ -688,8 +642,22 @@
 						</div>
 						<div class="content"  style="height: 100px;padding:25px;">
 							<div style="margin:auto;width:600px;">
+								Point interpolation
+								<label class="switch">
+									<input onclick="ToggleInterpolate()" checked type="checkbox">
+									<span class="check"></span>
+								</label>
+								Enforce slope
+								<label class="switch">
+									<input onclick="enforceSlope = !enforceSlope;" type="checkbox">
+									<span class="check"></span>
+								</label>
+								<label class="switch">
+									<input type="checkbox" checked>
+									<span class="check"></span>
+								</label>
 								<button class="button rounded" onclick="Clear()">Clear All Data</button>
-								<button class="button rounded" onclick="showDialog('#dialog')">Settings</button>
+								<button class="button rounded" onclick="GetTemperature()">Get Temperature</button>
 								<button class="button rounded" onclick="Stop()">Stop</button>
 								<button class="large-button button danger block-shadow-danger text-shadow lighten loading-cube" onclick="StartOven()">Start</button>
 							</div>
@@ -709,10 +677,6 @@
 								<div class="list">
 									<div style="background-color: green;" class="list-icon"></div>
 									<span class="list-title">Temp. Readout</span>
-								</div>
-								<div class="list">
-									<div style="background-color: blue;" class="list-icon"></div>
-									<span class="list-title">Calculated Time</span>
 								</div>
 								<div class="list active">
 									<div style="background-color: red;" class="list-icon"></div>
