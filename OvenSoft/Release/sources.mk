@@ -41,4 +41,5 @@ SUBDIRS := \
 core/core \
 libraries/Wire/src \
 libraries/Wire/src/utility \
+libraries/SoftwareSerial/src \
 
