@@ -9,9 +9,9 @@ volatile bool justCrossedZero = false;
 volatile unsigned long zeroCrossingTime = 0;
 unsigned long heatingStartTime = 0;
 
-#define ELAPSED (millis() - heatingStartTime)
+#define ELAPSED (millis() - heatingStartTime)	//TODO: Maybe make it nicer?
 
-int sensorValue = 0;
+int sensorValue = 0;	//TODO: Object for sensors, with internalized conversion?
 bool started = false;
 
 #define AC_CHANNEL_NR 1
@@ -21,7 +21,7 @@ struct ACchannel {
 	bool notStarted = false;
 	unsigned int onTime = 0;
 
-	void eval(unsigned long elapsedTime) {
+	void eval(unsigned long elapsedTime) {		//TODO: global counter?
 		if (notStarted && (elapsedTime >= onTime) && (onTime < 9600)) {
 			digitalWrite(pin, HIGH);
 			delayMicroseconds(7);   //experimental, do not "fix".
@@ -36,8 +36,9 @@ ACchannel channels[AC_CHANNEL_NR];
 struct event {
 	uint32_t timeVal;
 	uint16_t targetTemp;
-	uint8_t channel;
+	uint8_t channel;		//TODO: Finish implementing multiple channels.
 };
+
 #define POINTS 50
 event eventArray[POINTS];
 int totalEvents = 0;
@@ -56,10 +57,11 @@ unsigned long lastNodeEnd = 0;
 int lastNodeTemp = 0;
 
 void setup() {
-	for (int i = 0; i < BUFFERSIZE; i++) {
+	for (int i = 0; i < BUFFERSIZE; i++) {		//TODO: Move averaging and error correction into "sensor" objects.
 		buffer[i] = analogRead((unsigned char) A0);
 	}
 	endNodeTemp = pgm_read_float_near(lookupTemp + analogRead((unsigned char) A0));
+			//TODO: No magical numbers.
 	pinMode(6, OUTPUT); //TRIAC
 	pinMode(7, OUTPUT); //TRIAC
 	pinMode(13, OUTPUT); //LED
@@ -71,9 +73,6 @@ void setup() {
 
 	channels[0].pin = 7;
 
-	//HOAX
-	started = true;
-	heatingStartTime = millis();
 }
 
 void nextNode() {
@@ -82,21 +81,21 @@ void nextNode() {
 		started = false;
 		return;
 	}
-	lastNodeEnd = endNodeTime;
+	lastNodeEnd = endNodeTime;		//TODO: A mode that waits until temperature is achieved before next node.
 	lastNodeTemp = endNodeTemp;
 	endNodeTemp = eventArray[currentEvent].targetTemp;
 	endNodeTime = eventArray[currentEvent].timeVal;
 }
 
 int calculatedTime = 0;
-float temperature = 0;
+float temperature = 0;			//TODO: Move all sensor-related variables into the object.
 
 float target = 0;
 
 
 void updatePID() {
 	int tempVal = analogRead((unsigned char) A0);
-	if (abs(tempVal - buffer[BUFFERSIZE - 1]) < 10) {
+	if (abs(tempVal - buffer[BUFFERSIZE - 1]) < 10) {		//TODO: Object.
 		for (int i = 0; i < BUFFERSIZE - 1; i++) {
 			buffer[i] = buffer[i + 1];
 		}
@@ -137,13 +136,13 @@ void loop() {
 		switch (function) {
 		case 'V': //get version
 			Serial.print(POINTS);
-			Serial.print(";0;");
+			Serial.print(";0;");		//TODO: Finalize float support for temperature points.
 			break;
 		case 'C': //change enforce
 			enforceSlope = (bool) Serial.readStringUntil(';').toInt();
 			break;
 		case 'S': //stop
-			started = false;
+			started = false;	//TODO: proper reset method.
 			break;
 		case 'T': //get temp
 			//sensorValue = analogRead((unsigned char) A0); //TMP
@@ -157,7 +156,7 @@ void loop() {
 		case 'Q':
 			totalEvents = Serial.readStringUntil(';').toInt();
 			for (int i = 0; i < totalEvents; i++) {
-				eventArray[i].timeVal = Serial.readStringUntil(';').toInt();
+				eventArray[i].timeVal = Serial.readStringUntil(';').toInt();		//TODO: Better transfer method.
 				eventArray[i].targetTemp = Serial.readStringUntil(';').toInt();
 			}
 			heatingStartTime = millis();
