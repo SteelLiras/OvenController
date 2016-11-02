@@ -11,7 +11,6 @@ RM := rm -f
 -include subdir.mk
 -include libraries/Wire/src/utility/subdir.mk
 -include libraries/Wire/src/subdir.mk
--include libraries/SoftwareSerial/src/subdir.mk
 -include core/core/subdir.mk
 -include objects.mk
 

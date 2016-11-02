@@ -10,6 +10,7 @@ volatile unsigned long zeroCrossingTime = 0;
 unsigned long heatingStartTime = 0;
 
 #define ELAPSED (millis() - heatingStartTime)	//TODO: Maybe make it nicer?
+#define CROSSING (millis() - zeroCrossingTime)
 
 int sensorValue = 0;	//TODO: Object for sensors, with internalized conversion?
 bool started = false;
@@ -21,8 +22,8 @@ struct ACchannel {
 	bool notStarted = false;
 	unsigned int onTime = 0;
 
-	void eval(unsigned long elapsedTime) {		//TODO: global counter?
-		if (notStarted && (elapsedTime >= onTime) && (onTime < 9600)) {
+	void eval() {
+		if (notStarted && (CROSSING >= onTime) && (onTime < 9600)) {
 			digitalWrite(pin, HIGH);
 			delayMicroseconds(7);   //experimental, do not "fix".
 			digitalWrite(pin, LOW);
@@ -115,8 +116,27 @@ void updatePID() {
 		nextNode();
 	}
 
-	if (enforceSlope) {
-		target = lastNodeTemp + ((float)(endNodeTemp - lastNodeTemp)) * ((float)(ELAPSED-lastNodeEnd)) / ((float)(endNodeTime - lastNodeEnd));
+	if (enforceSlope) {	//closer to current of the slope as-is or going from current temperature
+		if (endNodeTemp > lastNodeTemp) {
+			target = min(
+					temperature
+							+ ((float) (endNodeTemp - lastNodeTemp)) * 20.0
+									/ ((float) (endNodeTime - lastNodeEnd)),
+					lastNodeTemp
+							+ ((float) (endNodeTemp - lastNodeTemp))
+									* ((float) (ELAPSED - lastNodeEnd))
+									/ ((float) (endNodeTime - lastNodeEnd)));
+		} else {
+			target = max(
+					temperature
+							+ ((float) (endNodeTemp - lastNodeTemp)) * 20.0
+									/ ((float) (endNodeTime - lastNodeEnd)),
+					lastNodeTemp
+							+ ((float) (endNodeTemp - lastNodeTemp))
+									* ((float) (ELAPSED - lastNodeEnd))
+									/ ((float) (endNodeTime - lastNodeEnd)));
+		}
+		//OLD: target = lastNodeTemp + ((float)(endNodeTemp - lastNodeTemp)) * ((float)(ELAPSED-lastNodeEnd)) / ((float)(endNodeTime - lastNodeEnd));
 	} else {
 		target = endNodeTemp;
 	}
@@ -173,9 +193,8 @@ void loop() {
 			channels[i].notStarted = true;
 		}
 	}
-	unsigned long elapsedTime = micros() - zeroCrossingTime;
 
 	for (int i = 0; i < AC_CHANNEL_NR; i++) {
-		channels[i].eval(elapsedTime);
+		channels[i].eval();
 	}
 }
