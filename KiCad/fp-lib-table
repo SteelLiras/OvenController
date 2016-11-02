@@ -1,0 +1,5 @@
+(fp_lib_table
+  (lib (name arduino)(type Legacy)(uri "$(KIPRJMOD)\\lib.pretty\\arduino.mod")(options "")(descr ""))
+  (lib (name term)(type KiCad)(uri "$(KIPRJMOD)\\term.pretty")(options "")(descr ""))
+  (lib (name images)(type KiCad)(uri "$(KIPRJMOD)\\images")(options "")(descr ""))
+)
