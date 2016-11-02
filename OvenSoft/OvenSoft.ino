@@ -12,10 +12,45 @@ unsigned long heatingStartTime = 0;
 #define ELAPSED (millis() - heatingStartTime)	//TODO: Maybe make it nicer?
 #define CROSSING (millis() - zeroCrossingTime)
 
-int sensorValue = 0;	//TODO: Object for sensors, with internalized conversion?
+
 bool started = false;
 
-#define AC_CHANNEL_NR 1
+#define BUFFERSIZE 7
+
+struct Thermistor {
+	int pin;
+	int buffer[BUFFERSIZE];
+	float temp = 0;
+	float average = 0;
+	void calculate() {
+		volatile unsigned long sum = 0;
+		for (int i = 0; i < BUFFERSIZE; i++) {
+			sum += buffer[i];
+		}
+		average = ((float) sum) / ((float) BUFFERSIZE);
+		temp = pgm_read_float_near(lookupTemp + ((int)(average + 0.5)));
+	}
+	void forceInit() {
+		for (int i = 0; i < BUFFERSIZE; i++) {
+			buffer[i] = analogRead((unsigned char) A0);
+		}
+		calculate();
+		buffer[BUFFERSIZE - 1] = average;	//to avoid rejecting samples if last reading is bad.
+	}
+	void update() {
+		int tempVal = analogRead((unsigned char) A0);
+		if (abs(tempVal - buffer[BUFFERSIZE - 1]) < 10) {
+			for (int i = 0; i < BUFFERSIZE - 1; i++) {
+				buffer[i] = buffer[i + 1];
+			}
+			buffer[BUFFERSIZE - 1] = tempVal;
+		}
+		calculate();
+	}
+};
+
+#define THERMISTOR_CHANNEL_NR 1
+Thermistor thermistors[THERMISTOR_CHANNEL_NR];
 
 struct ACchannel {
 	int pin;
@@ -32,6 +67,7 @@ struct ACchannel {
 	}
 };
 
+#define AC_CHANNEL_NR 1
 ACchannel channels[AC_CHANNEL_NR];
 
 struct event {
@@ -49,8 +85,7 @@ void zeroCrossing() {
 	justCrossedZero = true;
 	zeroCrossingTime = micros();
 }
-#define BUFFERSIZE 7
-int buffer[BUFFERSIZE];
+
 
 unsigned long endNodeTime = 0;
 int endNodeTemp = 0;
@@ -58,22 +93,18 @@ unsigned long lastNodeEnd = 0;
 int lastNodeTemp = 0;
 
 void setup() {
-	for (int i = 0; i < BUFFERSIZE; i++) {		//TODO: Move averaging and error correction into "sensor" objects.
-		buffer[i] = analogRead((unsigned char) A0);
-	}
-	endNodeTemp = pgm_read_float_near(lookupTemp + analogRead((unsigned char) A0));
-			//TODO: No magical numbers.
+
 	pinMode(6, OUTPUT); //TRIAC
 	pinMode(7, OUTPUT); //TRIAC
-	pinMode(13, OUTPUT); //LED
 	pinMode(2, INPUT); //ZERO
 	digitalWrite(6, LOW);
 	digitalWrite(7, LOW);
+
 	Serial.begin(115200);
 	attachInterrupt(digitalPinToInterrupt(2), zeroCrossing, RISING);
 
 	channels[0].pin = 7;
-
+	thermistors[0].pin = A0;
 }
 
 void nextNode() {
@@ -89,28 +120,16 @@ void nextNode() {
 }
 
 int calculatedTime = 0;
-float temperature = 0;			//TODO: Move all sensor-related variables into the object.
 
 float target = 0;
 
 
 void updatePID() {
-	int tempVal = analogRead((unsigned char) A0);
-	if (abs(tempVal - buffer[BUFFERSIZE - 1]) < 10) {		//TODO: Object.
-		for (int i = 0; i < BUFFERSIZE - 1; i++) {
-			buffer[i] = buffer[i + 1];
-		}
-		buffer[BUFFERSIZE - 1] = tempVal;
+	for(int i = 0; i < THERMISTOR_CHANNEL_NR; i++){
+		thermistors[i].update();
 	}
-
-	int sum = 0;
-	for (int i = 0; i < BUFFERSIZE; i++) {
-		sum += buffer[i];
-	}
-	float average = ((float) sum) / ((float) BUFFERSIZE);
-	sensorValue = average + 0.5;
-
-	temperature = pgm_read_float_near(lookupTemp + sensorValue);
+	float temperature;
+	temperature = thermistors[0].temp; //FIXME
 
 	if (ELAPSED >= endNodeTime) {
 		nextNode();
@@ -143,7 +162,6 @@ void updatePID() {
 	float difference = target - temperature;
 
 	calculatedTime = (int) (difference * 500.0);
-	//int calculatedTime = analogRead((unsigned char)A7);    //HOAX
 
 	int constrainedCalculatedTime = constrain(calculatedTime, 0, 1000);
 	channels[0].onTime = 9600 - pgm_read_word_near(lookupTime + constrainedCalculatedTime);
@@ -165,10 +183,9 @@ void loop() {
 			started = false;	//TODO: proper reset method.
 			break;
 		case 'T': //get temp
-			//sensorValue = analogRead((unsigned char) A0); //TMP
 			Serial.print(ELAPSED);
 			Serial.print(";");
-			Serial.print(sensorValue);
+			Serial.print(thermistors[0].average);
 			Serial.print(";");
 			Serial.print(calculatedTime);
 			Serial.print(";");
@@ -179,6 +196,10 @@ void loop() {
 				eventArray[i].timeVal = Serial.readStringUntil(';').toInt();		//TODO: Better transfer method.
 				eventArray[i].targetTemp = Serial.readStringUntil(';').toInt();
 			}
+			for (int i = 0; i < BUFFERSIZE; i++) {
+				thermistors[i].forceInit();
+			}
+			endNodeTemp = thermistors[0].temp;
 			heatingStartTime = millis();
 			currentEvent = -1;
 			nextNode();
