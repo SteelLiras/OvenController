@@ -2,243 +2,75 @@
 <html>
 <head>
 	<meta charset="utf-8" />
+	
     <link href="css/metro.min.css" rel="stylesheet">
 	<link href="css/metro-icons.min.css" rel="stylesheet">
+	
     <script src="js/jquery.min.js"></script>
     <script src="js/metro.min.js"></script>
+	
+	<script src="js/Helpers.js"></script>
+	<script src="js/Server.js"></script>
+	<script src="js/PointGroup.js"></script>
+	<script src="js/PIDPlot.js"></script>
+	<script src="js/OvenPlot.js"></script>
+	<script src="js/PlotRenderer.js"></script>
+	<script src="js/PlotManager.js"></script>
+	
 	<script type="text/javascript">
-		var canvas, ctx;
-		var scale;
-		var gridCell = { X: 100, Y: 100 }
-		var snapping;
-		var pointRadius = 6;
-		var lockGroup = false;
-		var limitY = 100;
-		
+		var enforceSlope;
+	
 		var serverAddress = "http://192.168.1.15";
-		
-		var selectedGroup = "Temp. Target";
-		var groupColors = {  "Temp. Target" : "#FF0000", "Temp. Readout" : "#00FF00", "Calculated Time" : "#0000FF" };
-		var groupPointVisibility = { "Temp. Target" : true, "Temp. Readout" : false, "Calculated Time" : false };
-		
-		var pointsGroups = { "Temp. Target" : [], "Temp. Readout" : [], "Calculated Time" : [] };
-		var interpolation = "Linear";
-		
-		var maxClickTime = 200;
-		var dragStartTime;
-		var draggedPoint;
-		var isDraggingPoint = false;
-		
-		var tempReadTimeout = 500;
-		var lastTempReadCall;
-		var currentTime = 0;
-		var enforceSlope = true;
-		var stop = false;
-		
+		var server, ovenPlot, plotRenderer, plotManager; 
+
 		function Initialize()
 		{
-			canvas = document.getElementById("canvas");
-			ctx = canvas.getContext("2d");
-
-			window.addEventListener('resize', ResizeCanvas, false);
-
-			canvas.addEventListener('mousedown', function(evt){ BeginDragPoint(evt); }, true);
-			canvas.addEventListener('mouseup', function(evt){ EndDragPoint(evt); }, true);
-			canvas.addEventListener('mousemove', function(evt){ DragPoint(evt); }, true);
+			Helpers.Initialize("canvas");
 			
-			console.log(serverAddress);
+			server = new Server(serverAddress);
+			ovenPlot = new OvenPlot();
+		
+			plotRenderer = new PlotRenderer("canvas", ovenPlot);
+			UpdateScale();
 			
-			SetSnapping();
-			ResizeCanvas();
+			plotManager = new PlotManager("canvas", ovenPlot, plotRenderer);
 		}
 		
-		function BeginDragPoint(e)
+		function StartOven()
 		{
-			dragStartTime = new Date().getTime();	
-		
-			if (e.shiftKey)
-				return;
-		
-			var clickedPoint = GetClickCoordinates(e);
-			draggedPoint = GetPointIdAtCoords(clickedPoint);
-			
-			console.log("DP: " + draggedPoint);
-			
-			if (draggedPoint.Index != -1)
+			server.SendConfig(enforceSlope, 
+			function(success) 
 			{
-				isDraggingPoint = true;
-				console.log("drag started");
-			}		
-		}
-		
-		function DragPoint(e)
-		{
-			if (!isDraggingPoint)
-				return;
-		
-			var clickedPoint = GetClickCoordinates(e);
-			console.log(draggedPoint.Group + " " + draggedPoint.Index);
-			pointsGroups[draggedPoint.Group][draggedPoint.Index] = GetPointGridCoords(clickedPoint);
-			pointsGroups[draggedPoint.Group][draggedPoint.Index].dragged = true;
-			pointsGroups[draggedPoint.Group].sort(function(a, b){return a.X-b.X});
-			
-			for	(var i=0;i<pointsGroups[draggedPoint.Group].length;i++)
-			{
-				if (pointsGroups[draggedPoint.Group][i].dragged)
+				if (!success)
 				{
-					draggedPoint.Index = i;
-					delete pointsGroups[draggedPoint.Group][i].dragged;
-					break;
+					alert("Failed to send configuration to server.");
+					return;
 				}
-			}
-			
-			UpdateRenderer();
-		}
-		
-		function EndDragPoint(e)
-		{			
-			isDraggingPoint = false;
-			var dragEndTime = new Date().getTime();
-			
-			if ((dragEndTime - dragStartTime < maxClickTime) && (!isDraggingPoint))
-				CanvasClicked(e);
-		}
-		
-		function GetPointGridCoords(clickedPoint)
-		{
-			var pointCoords = DivVec2(clickedPoint, scale);
-		
-			if (snapping)
-				pointCoords = {X: Math.round(pointCoords.X / gridCell.X) * gridCell.X, Y: Math.round(pointCoords.Y / gridCell.Y) * gridCell.Y }
 				
-			return pointCoords;
-		}
-		
-		function GetPointIdAtCoords(coords)
-		{
-			var results = [];
-		
-			for (var property in pointsGroups) 
-			{
-				if (pointsGroups.hasOwnProperty(property)) 
+				server.SendData(ovenPlot.TopLampPlot.userInputGroup, ovenPlot.BottomLampPlot.userInputGroup,
+				function(success)
 				{
-					if ((property != selectedGroup) && (lockGroup))
+					if (!success)
 					{
-					console.log("skipped");
-						continue;
+						alert("Failed to send data to server.");
+						return;
 					}
-						
-					for (var i=0;i<pointsGroups[property].length;i++)
-					{
-					console.log("iteration");
-						if (Distance(coords, MulVec2(pointsGroups[property][i], scale)) <= pointRadius)
-						{
-							console.log("result added");
-							results.push({Group: property, Index: i});
-						}
-					}
-				}
-			}
-
-			if (results.length == 0)
-				return { Group: "", Index: -1};
-			else if (results.length == 1)
-				return results[0];
-			
-			for (var i=0;i<results.length;i++)
+					
+					GetTemperature();
+				});
+			});
+		}
+		
+		function GetTemperature()
+		{
+			server.GetTemperature(function(time, tempTop, tempBottom)
 			{
-				if (results[i].Group == selectedGroup)
-					return results[i];
-			}
+				ovenPlot.AddReadout(time, tempTop, tempBottom);
+			});
 			
-			return results[0];
-		}
-		
-		function Distance(Vector1, Vector2)
-		{
-			return Math.abs(Math.sqrt((Vector2.X - Vector1.X) * (Vector2.X - Vector1.X) 
-					- (Vector2.Y - Vector1.Y) * (Vector2.Y - Vector1.Y)));
-		}
-		
-		function MulVec2(Vector1, Vector2)
-		{
-			return { X: Vector1.X * Vector2.X, Y: Vector1.Y * Vector2.Y };
-		}
-		
-		function DivVec2(Vector1, Vector2)
-		{
-			return { X: Vector1.X / Vector2.X, Y: Vector1.Y / Vector2.Y };
-		}
-		
-		function AddPoint(clickedPoint)
-		{
-			var point = GetPointGridCoords(clickedPoint);
-			pointsGroups[selectedGroup].push(point);
-			pointsGroups[selectedGroup].sort(function(a, b){return a.X-b.X});
-		}
-		
-		function AddPointAtCoords(x, y)
-		{
-			pointsGroups[selectedGroup].push({X: x, Y: limitY - y});
-			pointsGroups[selectedGroup].sort(function(a, b){return a.X-b.X});
-		}
-		
-		function CanvasClicked(e)
-		{
-			console.log("click");
-			var clickedPoint = GetClickCoordinates(e);
-
-			if (!e.shiftKey)
-				AddPoint(clickedPoint);
-			else
-			{
-				console.log("delete");
-				var point = GetPointIdAtCoords(clickedPoint);
-								
-				
-
-				if (point.Index != -1)
-					pointsGroups[point.Group].splice(point.Index, 1);
-			}
-
-			UpdateRenderer();
-		}
-		
-		function GetClickCoordinates(e)
-		{
-			var x;
-			var y;
-			
-			if (e.pageX || e.pageY)
-			{ 
-			  x = e.pageX;
-			  y = e.pageY;
-			}			
-			else 
-			{ 
-			  x = e.clientX + document.body.scrollLeft + document.documentElement.scrollLeft; 
-			  y = e.clientY + document.body.scrollTop + document.documentElement.scrollTop; 
-			} 
-			
-			x -= canvas.offsetLeft;
-			y -= canvas.offsetTop;
-			
-			return {X: x, Y: y};
-		}
-		
-		function SetSnapping()
-		{
-			snapping = document.getElementById("snapping").checked;
-		}
-		
-		function AddPointClicked()
-		{
-			var x = parseInt(document.getElementById("newPointX").value);
-			var y = parseInt(document.getElementById("newPointY").value);
-			
-			AddPoint(clickedPoint);
-			
-			UpdateRenderer();
+			//TODO Configurable intervals
+			if (server.isOvenRunning)
+				SetTimeout(GetTemperature, 500);
 		}
 		
 		function UpdateScale()
@@ -246,342 +78,41 @@
 			var scaleX = parseInt(document.getElementById("scaleX").value);
 			var scaleY = parseInt(document.getElementById("scaleY").value);
 			
-			var cellX = Math.pow(10, Math.floor(Math.log10(scaleX))-1);
-			var cellY = Math.pow(10, Math.floor(Math.log10(scaleY))-1);
-	
-			limitY = scaleY;
-			scaleX = canvas.width / scaleX;
-			scaleY = canvas.height / scaleY;
-			
-			scale = { X: scaleX, Y: scaleY };
-			gridCell = { X: cellX, Y: cellY };
-			
-			UpdateRenderer();
+			plotRenderer.UpdateScale(scaleX, scaleY);
 		}
 		
-		function DrawGrid()
+		function AddPoint()
 		{
-			ctx.strokeStyle = "#000000";
-			ctx.fillStyle="#FFFFFF";
-			ctx.font = "13px Sans-Serif";
+			var x = parseInt(document.getElementById("newPointX").value);
+			var y = parseInt(document.getElementById("newPointY").value);
 			
-			for (var x=0;x<=canvas.width / scale.X;x++)
-			{	
-				if ((x % gridCell.X == 0) && (x != 0))
-					ctx.fillText(x, x * scale.X + 4, 15);
-			
-				ctx.beginPath();
-				ctx.moveTo(x * scale.X, 0);
-				
-				if (x % gridCell.X == 0)
-				{
-					var cx = x;
-					while (cx > 1)
-					{
-						var rlx = Math.floor(Math.log(cx) / Math.log(gridCell.X));
-						var u = Math.pow(gridCell.X, rlx);
-						
-						if (cx%u == 0)
-						{
-							ctx.lineWidth = Math.pow(2, rlx - 1);
-							break;
-						}
-						
-						cx = cx%u;
-					}
-
-					ctx.lineTo(x * scale.X, canvas.height);
-				}
-				
-				ctx.stroke();
-			}
-			
-			for (var y=0;y<=canvas.height / scale.Y;y++)
-			{
-				if (y % gridCell.Y == 0)
-					ctx.fillText(limitY - y, 5, y * scale.Y - 4);
-				
-				ctx.beginPath();
-				ctx.moveTo(0, y * scale.Y);
-				
-				if (y % gridCell.Y == 0)
-				{
-					var cy = y;
-					while (cy > 1)
-					{
-						var rly = Math.floor(Math.log(cy) / Math.log(gridCell.Y));
-						var u = Math.pow(gridCell.Y, rly);
-						
-						if (cy%u == 0)
-						{
-							ctx.lineWidth = Math.pow(2, rly - 1);
-							break;
-						}
-						
-						cy = cy%u;
-					}
-
-					ctx.lineTo(canvas.width, y * scale.Y);
-				}
-				
-				ctx.stroke();
-			}
-		}
-		
-		function ToggleInterpolate()
-		{
-			if (interpolation == "Linear")
-				interpolation = "";
-			else
-				interpolation = "Linear";
-				
-			UpdateRenderer();
-		}
-		
-		var groupBeingDrawn = "";
-		
-		function ResizeCanvas()
-		{
-			canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-			
-			UpdateScale();
-		}
-		
-		function UpdateRenderer()
-		{
-			ctx.fillStyle="#555555";
-			ctx.fillRect(0, 0, canvas.width, canvas.height);
-			
-			DrawGrid();
-			
-			for (var property in pointsGroups) 
-			{
-				if (pointsGroups.hasOwnProperty(property)) 
-				{
-					groupBeingDrawn = property;
-					
-					if (groupPointVisibility[property])
-						pointsGroups[property].forEach(DrawPoint);
-					
-					if (interpolation == "")
-						continue;
-						
-					for (var i=0;i<pointsGroups[property].length-1;i++)
-					{
-						ctx.beginPath();
-						
-						if (interpolation == "Linear")
-						{
-							ctx.strokeStyle = groupColors[property];
-							ctx.moveTo(pointsGroups[property][i].X * scale.X, pointsGroups[property][i].Y * scale.Y);
-							ctx.lineTo(pointsGroups[property][i + 1].X * scale.X, pointsGroups[property][i + 1].Y * scale.Y);
-						}
-						
-						ctx.stroke();
-					}
-				}
-			}
-		}
-		
-		function Clear()
-		{
-			currentTime = 0;
-			pointsGroups = { "Temp. Target" : [], "Temp. Readout" : [], "Calculated Time" : [] };
-			UpdateRenderer();
+			plotManager.AddPoint(x, plotRenderer.limitY - y);
 		}
 		
 		function Stop()
 		{
-			$.get(serverAddress + "/stop", function (data, status)
+			server.Stop(function(success) { if (!success) alert("There is no stopping!"); })
+		}
+		
+		function ClearAll()
+		{
+			if (!server.isOvenRunning)
 			{
-				if (data != "OK")
-				{
-					alert("There is no stopping!");
-					return;
-				}
-				
-				stop = true;
-				currentTime = 0;
-				
-				var tempTarget = pointsGroups["Temp. Target"];
-				pointsGroups = { "Temp. Target" : tempTarget, "Temp. Readout" : [], "Calculated Time" : [] };
-				
-				UpdateRenderer();
-			});
-		}
-		
-		function DrawPoint(item, index)
-		{
-			ctx.beginPath();
-			ctx.arc(item.X * scale.X, item.Y * scale.Y, pointRadius - 2, 0, 2 * Math.PI, false);
-			ctx.fillStyle = groupColors[groupBeingDrawn];
-			ctx.fill();
-			ctx.lineWidth = 2;
-			ctx.strokeStyle = '#000000';
-			ctx.stroke();
-		}
-		
-		function GetRandomColor()
-		{
-			var letters = '0123456789ABCDEF'.split('');
-			var color = '#';
-			
-			for (var i = 0; i < 6; i++ )
-				color += letters[Math.floor(Math.random() * 16)];
-			
-			return color;
-		}
-				
-		function StartOven()
-		{
-			console.log("Start oven");
-			$.get(serverAddress + "/versionInfo", function(data, status) { ValidateData(data) });
-		}
-		
-		function ValidateData(versionInfo)
-		{
-			console.log(versionInfo.split(";")[0]);
-			var maxPoints = parseInt(versionInfo.split(";")[0]);
-			var floatSupport = (versionInfo.split(";")[1] == "1");
-			console.log("Validate data: " + maxPoints + " " + floatSupport);
-			
-			var totalPoints = 0;
-			var foundFloatingPoint = false;
-			
-			totalPoints = pointsGroups["Temp. Target"].length;
-			
-		/*	for (var property in pointsGroups) 
-			{
-				if (pointsGroups.hasOwnProperty(property)) 
-					totalPoints += pointsGroups[property].length;
-			}*/
-
-			if (totalPoints > maxPoints)
-				alert("You have exceeded the maximum number of points your hardware supports. Please remove some of them. Limit is: " + maxPoints);
-			else 
-				SendConfig();
-		}
-			
-		function SendConfig()
-		{
-			console.log("Send config");
-			
-			$.get(serverAddress + "/sendConfig?fs=" + ((enforceSlope) ? "1" : "0"), 
-				function(data, status) 
-				{ 
-					console.log("send config callback");
-					if (data != "OK")
-					{
-						alert("Sending configuration failed.");
-						return;
-					}
-					
-					SendData();
-				});
-		}
-		
-		function SendData()
-		{
-			console.log("send data");
-			var dataString = pointsGroups[selectedGroup].length + ";";
-			
-			for (var i=0;i<pointsGroups[selectedGroup].length;i++)
-			{
-				var point = pointsGroups[selectedGroup][i];
-				var temp = limitY - point.Y;
-				//var adc = TemperatureToADC(temp);
-				
-				dataString += ((point.X * 1000) | 0) + ";" + (temp | 0) + ";";
+				ovenPlot.ClearAll();
+				plotRenderer.UpdateRenderer();
 			}
-			
-			console.log(dataString);
-			
-			$.get(serverAddress + "/start?data=" + dataString, 
-				function(data, status) 
-				{
-					console.log("send data callback");
-					if (data != "OK")
-					{
-						alert("Sending data failed.");
-						return;
-					}
-					
-					stop = false;
-					GetTemperature();
-				});
 		}
 		
-		function GetTemperature()
+		function ClearReadout()
 		{
-			lastTempReadCall = new Date().getTime();	
-			$.get(serverAddress + "/getTemp", 
-				function(data, status)
-				{
-					var serverTime = data.split(';')[0] / 1000;
-					var adc = data.split(';')[1];
-					var ct = data.split(';')[2];
-					
-					console.log("ADC: " + adc + " Calc Time: " + ct + " Time: " + serverTime);
-					
-					if ((adc == -1) || (ct == -1))
-						return;
-					
-					var temperature = ADCToTemperature(adc);
-					var calcTime = ADCToTemperature(ct);
-					
-					pointsGroups["Temp. Readout"].push({X: serverTime, Y: limitY - temperature});
-					pointsGroups["Temp. Readout"].sort(function(a, b){return a.X-b.X});
-					
-					//pointsGroups["Calculated Time"].push({X: serverTime, Y: limitY - ct});
-					//pointsGroups["Calculated Time"].sort(function(a, b){return a.X-b.X});
-					
-					UpdateRenderer();
-					
-					currentTime += tempReadTimeout / 1000;
-					var timeElapsed = new Date().getTime() - lastTempReadCall;
-					
-					if (!stop)
-						setTimeout(GetTemperature, tempReadTimeout);
-			});
+			if (!server.isOvenRunning)
+			{
+				ovenPlot.ClearReadout();
+				plotRenderer.UpdateRenderer();
+			}
 		}
-		
-		function TemperatureToADC(temp)
-		{
-			return 41943.0 / (5000 * Math.pow(Math.E, -(1580000.0 * (parseFloat(temp) - 25.0)) / (5963.0 * (20 * parseFloat(temp) + 5463))) + 41.0);
-		}
-		
-		function ADCToTemperature(adc)
-		{
-			return temperature = 1 / ((Math.log((((820 * 1023) / adc) - 820) / 100000) / 3950) + (1 / 298.15)) - 273.15;
-		}
-		
-		function AddGroup()
-		{
-			var groupName = $("#newGroupName").val();
-			
-			if (groupName == "")
-				return;
-			
-			var groupColor = GetRandomColor();
-			
-			groupColors[groupName] = groupColor;
-			pointsGroups[groupName] = [];
-			
-			$( "#groupList" ).append( '<div class="list"><div style="background-color: ' + groupColor + ';" class="list-icon"></div><span class="list-title">' + groupName + '</span></div>' );
-		}
-		
-		function DeleteGroup()
-		{
-			//TODO!!!
-			pointsGroups[selectedGroup] = [];					
-			UpdateRenderer();
-			
-			$( ".list.active" ).addClass("delete");
-			$( ".list.active.delete" ).prev().addClass("active");
-			$( ".list.active.delete" ).remove();
-		}		
 	</script>
+	
 	<style type="text/css">
 		canvas { 
 			margin:0; 
@@ -598,14 +129,9 @@
 <body onload="Initialize()">
     <div data-role="dialog" id="dialog" class="padding20" data-close-button="true">
         <h1>Settings</h1>
-		Point interpolation
-		<label class="switch">
-			<input onclick="ToggleInterpolate()" checked type="checkbox">
-			<span class="check"></span>
-		</label>
 		Snap to grid
 		<label class="switch" for="snapping">
-			<input onclick="SetSnapping();" checked id="snapping" type="checkbox">
+			<input onclick="plotManager.snapping = !plotManager.snapping;" checked id="snapping" type="checkbox">
 			<span class="check"></span>
 		</label>
 		Enforce slope
@@ -620,22 +146,6 @@
             var dialog = $(id).data('dialog');
             dialog.open();
         }
-		
-		function GenerateTempLookup()
-		{
-			var out = "{";
-			
-			for (var i=0;i<1024;i++)
-			{
-				var temp = 1 / ((Math.log((((820 * 1023) / i) - 820) / 100000) / 3950) + (1 / 298.15)) - 273.15;
-				temp *= 100;
-				//var val = (Math.acos(-i/500+1)/Math.PI)*9000;
-				out += temp.toFixed(0) + ", ";
-			}
-			
-			out += " };";
-			alert(out + "fdsf");
-		}
     </script>
 	<canvas id="canvas"></canvas>
 	<div data-role="charm" data-position="bottom" id="free-position-charm" id="settingsPanel">
@@ -688,7 +198,8 @@
 						</div>
 						<div class="content"  style="height: 100px;padding:25px;">
 							<div style="margin:auto;width:600px;">
-								<button class="button rounded" onclick="Clear()">Clear All Data</button>
+								<button class="button rounded" onclick="ClearAll()">Clear All</button>
+								<button class="button rounded" onclick="ClearReadout()">Clear Readout</button>
 								<button class="button rounded" onclick="showDialog('#dialog')">Settings</button>
 								<button class="button rounded" onclick="Stop()">Stop</button>
 								<button class="large-button button danger block-shadow-danger text-shadow lighten loading-cube" onclick="StartOven()">Start</button>
@@ -702,30 +213,19 @@
 					<div class="panel alert collapsed" data-role="panel">
 						<div class="heading">
 							<span class="icon mif-cabinet"></span>
-							<span class="title">Point Groups</span>
+							<span class="title">Plots</span>
 						</div>
 						<div class="content padding10">
-							<div class="listview list-type-icons"  data-role="listview" id="groupList" data-on-list-click="selectedGroup = list.find('.list-title').text();">
-								<div class="list">
+							<div class="listview list-type-icons" data-role="listview" id="groupList" data-on-list-click="plotManager.selectedLamp = parseInt(list.find('.list-title').text());">
+								<div class="list active">
 									<div style="background-color: green;" class="list-icon"></div>
-									<span class="list-title">Temp. Readout</span>
+									<span class="list-title">0</span>
 								</div>
 								<div class="list">
 									<div style="background-color: blue;" class="list-icon"></div>
-									<span class="list-title">Calculated Time</span>
-								</div>
-								<div class="list active">
-									<div style="background-color: red;" class="list-icon"></div>
-									<span class="list-title">Temp. Target</span>
+									<span class="list-title">1</span>
 								</div>
 							</div><br />
-							<div style="margin-right:0;margin-left:auto;width:420px;">
-								<div class="input-control text">
-									<input id="newGroupName" type="text" placeholder="New Group Name...">
-								</div>
-								<button class="button rounded" onclick="AddGroup()">Add Group</button>
-								<button class="button rounded" onclick="DeleteGroup()">Delete Group</button>
-							</div>
 						</div>
 					</div>
 				</div>
