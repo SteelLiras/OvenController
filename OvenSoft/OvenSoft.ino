@@ -134,9 +134,9 @@ void updatePID() {
 	if (ELAPSED >= endNodeTime) {
 		nextNode();
 	}
-
-	if (enforceSlope) {	//closer to current of the slope as-is or going from current temperature
-		if (endNodeTemp > lastNodeTemp) {
+	if (enforceSlope) {
+		/*NEW:
+		if (endNodeTemp > lastNodeTemp) { //closer to current of the slope as-is or going from current temperature
 			target = min(
 					temperature
 							+ ((float) (endNodeTemp - lastNodeTemp)) * 20.0
@@ -154,8 +154,9 @@ void updatePID() {
 							+ ((float) (endNodeTemp - lastNodeTemp))
 									* ((float) (ELAPSED - lastNodeEnd))
 									/ ((float) (endNodeTime - lastNodeEnd)));
-		}
-		//OLD: target = lastNodeTemp + ((float)(endNodeTemp - lastNodeTemp)) * ((float)(ELAPSED-lastNodeEnd)) / ((float)(endNodeTime - lastNodeEnd));
+		}*/
+		//OLD:
+		target = lastNodeTemp + ((float)(endNodeTemp - lastNodeTemp)) * ((float)(ELAPSED-lastNodeEnd)) / ((float)(endNodeTime - lastNodeEnd));
 	} else {
 		target = endNodeTemp;
 	}
