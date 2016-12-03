@@ -1,0 +1,4 @@
+Communication protocol:
+UART, 115200 baud
+Points:
+<ChannelNr>;(<PointsOnChX>;(<intTime{ms}>;<intTemp{C};);)
