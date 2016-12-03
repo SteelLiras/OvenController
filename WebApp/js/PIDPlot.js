@@ -4,8 +4,10 @@ function PIDPlot(name, visibility, interpolation)
 	this.visibility = visibility;
 	this.interpolation = interpolation;
 	
-	this.userInputGroup = new PointGroup(name + "-input", interpolation, Helpers.GetRandomColor(), visibility, false, 100000, true);
-	this.readoutGroup = new PointGroup(name + "-readoout", InterpolationMode.Linear, Helpers.GetRandomColor(), visibility, true, 100000, true);
+	var color = Helpers.GetRandomColor();
+	
+	this.userInputGroup = new PointGroup(name + "-input", interpolation, color, visibility, false, 100000, true, true);
+	this.readoutGroup = new PointGroup(name + "-readoout", InterpolationMode.Linear, color, visibility, true, 100000, true, false);
 	
 	this.ClearAll = function()
 	{

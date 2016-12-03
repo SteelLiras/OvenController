@@ -1,7 +1,7 @@
 var InterpolationMode = { Linear : 0, Digital : 1 };
 
 //TODO: Point parsing, Read-only functionality, floating point check, digital interpolation
-function PointGroup(name, interpolation, color, visibility, readonly, limit, floatingPoint)
+function PointGroup(name, interpolation, color, visibility, readonly, limit, floatingPoint, showPoints)
 {
 	this.name = name;
 	this.points = [];
@@ -11,6 +11,7 @@ function PointGroup(name, interpolation, color, visibility, readonly, limit, flo
 	this.readonly = readonly;
 	this.limit = limit;
 	this.floatingPoint = floatingPoint;
+	this.showPoints = showPoints;
 	
 	this.AddPoint = function(x, y)
 	{
@@ -52,19 +53,23 @@ function PointGroup(name, interpolation, color, visibility, readonly, limit, flo
 
 		for (var i=0;i<this.GetPointCount();i++)
 		{
-			ctx.beginPath();
-			ctx.arc(this.points[i].X * scale.X, this.points[i].Y * scale.Y, radius - 2, 0, 2 * Math.PI, false);
-			ctx.fillStyle = this.color;
-			ctx.fill();
-			ctx.lineWidth = 2;
-			ctx.strokeStyle = '#000000';
-			ctx.stroke();
+			if (showPoints)
+			{
+				ctx.beginPath();
+				ctx.arc(this.points[i].X * scale.X, this.points[i].Y * scale.Y, radius - 2, 0, 2 * Math.PI, false);
+				ctx.fillStyle = this.color;
+				ctx.fill();
+				ctx.lineWidth = 2;
+				ctx.strokeStyle = '#000000';
+				ctx.stroke();
+			}
 			
 			if (i != this.GetPointCount() - 1)
 			{
 				ctx.beginPath();
 				ctx.moveTo(this.points[i].X * scale.X, this.points[i].Y * scale.Y);
 				ctx.lineTo(this.points[i + 1].X * scale.X, this.points[i + 1].Y * scale.Y);
+				ctx.strokeStyle = this.color;
 				ctx.stroke();
 			}
 		}

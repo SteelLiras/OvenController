@@ -18,7 +18,7 @@
 	<script src="js/PlotManager.js"></script>
 	
 	<script type="text/javascript">
-		var enforceSlope;
+		var enforceSlope = true;
 	
 		var serverAddress = "http://192.168.1.15";
 		var server, ovenPlot, plotRenderer, plotManager; 
@@ -39,25 +39,10 @@
 		function StartOven()
 		{
 			server.SendConfig(enforceSlope, 
-			function(success) 
+			function() 
 			{
-				if (!success)
-				{
-					alert("Failed to send configuration to server.");
-					return;
-				}
-				
 				server.SendData(ovenPlot.TopLampPlot.userInputGroup, ovenPlot.BottomLampPlot.userInputGroup,
-				function(success)
-				{
-					if (!success)
-					{
-						alert("Failed to send data to server.");
-						return;
-					}
-					
-					GetTemperature();
-				});
+				function() { GetTemperature(); });
 			});
 		}
 		
@@ -65,12 +50,13 @@
 		{
 			server.GetTemperature(function(time, tempTop, tempBottom)
 			{
-				ovenPlot.AddReadout(time, tempTop, tempBottom);
+				ovenPlot.AddReadout(time, plotRenderer.limitY - tempTop, plotRenderer.limitY - tempBottom);
+				plotRenderer.UpdateRenderer();
 			});
 			
 			//TODO Configurable intervals
 			if (server.isOvenRunning)
-				SetTimeout(GetTemperature, 500);
+				setTimeout(GetTemperature, 500);
 		}
 		
 		function UpdateScale()
@@ -91,7 +77,7 @@
 		
 		function Stop()
 		{
-			server.Stop(function(success) { if (!success) alert("There is no stopping!"); })
+			server.Stop()
 		}
 		
 		function ClearAll()

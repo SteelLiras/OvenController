@@ -14,8 +14,10 @@ function Server(ip)
 		}
 		
 		console.log("Send config...");
+		console.log("Enforce Slope: " + ((enforceSlope) ? "1" : "0"));
+		
 		$.get(this.serverAddress + "/sendConfig?fs=" + ((enforceSlope) ? "1" : "0"), 
-			function(data, status) { callback(); })
+			function(data, status) { if (data == "OK") callback(); })
 			.fail(function() { console.log("Send Config failed."); });
 	}
 	
@@ -37,29 +39,23 @@ function Server(ip)
 		$.get(this.serverAddress + "/getTemp", 
 			function(data, status)
 			{
-				if (status != 200)
-				{
-					console.log("Get Temperature failed: Bad server response: " + status);
-					return;
-				}
-				
-				var time = data.split(';')[0];
-				var adcTop = data.split(';')[1];
-				var adcBottom = data.split(';')[2];
+				var time = parseFloat(data.split(';')[0]);
+				var adcTop = parseFloat(data.split(';')[1]);
+				var adcBottom = parseFloat(data.split(';')[2]);
 				
 				console.log("Get Temperature: Time: " + time + " ADC Top: " + adcTop + " ADC Bottom: " + adcBottom);
 				
-				if ((adcTop < 0) || (adcBottom < 0) || (time < 0))
+				if ((adcTop < 0) || (adcBottom < 0) || (time < 0) || isNaN(adcTop) || isNaN(adcBottom) || isNaN(time))
 				{
-					console.log("Get Temperature failed: One of the pooled values is negative.");
+					console.log("Get Temperature failed: One of the pooled values is negative or NaN.");
 					return;
 				}
 				
 				var resultTime = time / 1000;
-				var resultTemperatureTop = Helpers.ADCToTemperature(adcTop);
-				var resultTemperatureBottom = Helpers.ADCToTemperature(adcBottom);
+				/*var resultTemperatureTop = Helpers.ADCToTemperature(adcTop);
+				var resultTemperatureBottom = Helpers.ADCToTemperature(adcBottom);*/
 				
-				callback(resultTime, resultTemperatureTop, resultTemperatureBottom);
+				callback(resultTime, adcTop, adcBottom);
 			}).fail(function() { console.log("Get Temp failed."); });
 	}
 
@@ -77,25 +73,26 @@ function Server(ip)
 		var dataStringBottom = this.CreateDataString(pointGroupBottom);
 		var dataString = "2;" + dataStringTop + dataStringBottom;
 		
+		console.log("Data String:" + dataString);
+		
 		$.get(this.serverAddress + "/start?data=" + dataString, 
 			function(data, status) 
 			{
-				server.LogRequestResult(data);
-				
-				if (status == 200)
+				if (data == "OK")
+				{
 					server.isOvenRunning = true;
+					callback();
+				}
 				
-				callback((status == 200));
 			}).fail(function() { console.log("Send Data failed."); });
 	}
 			
-	this.Stop = function(callback)
+	this.Stop = function()
 	{
 		console.log("Stopping...");
-		$.get(this.serverAddress + "/stop", function (data, status)
+		$.get(this.serverAddress + "/stop", function (data)
 		{
 			server.isOvenRunning = false;
-			callback();
 		}).fail(function() { console.log("There is no stopping."); });
 	}
 	
@@ -103,11 +100,12 @@ function Server(ip)
 	{
 		var dataString = pointGroup.GetPointCount() + ";";
 			
-		for (var i=0;i<pointsGroup.GetPointCount();i++)
+		for (var i=0;i<pointGroup.GetPointCount();i++)
 		{
 			var point = pointGroup.GetPoint(i);
-			var temp = point.Y;
+			var temp = plotRenderer.limitY - point.Y;
 			
+			//Temperature is converted to int!!!
 			dataString += ((point.X * 1000) | 0) + ";" + (temp | 0) + ";";
 		}
 		
