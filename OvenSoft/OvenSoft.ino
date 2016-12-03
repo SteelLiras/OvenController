@@ -56,7 +56,7 @@ Thermistor thermistors[THERMISTOR_CHANNEL_NR];
 
 struct event {
 	uint32_t timeVal;
-	uint16_t targetTemp;
+	float targetTemp;
 };
 
 struct ACchannel {
@@ -79,6 +79,7 @@ struct ACchannel {
 
 	void init() {
 		endNodeTemp = thermistors[thermistorNo].temp;
+		endNodeTime = ELAPSED;
 		currentEvent = -1;
 		nextNode();
 		channelEnabled = true;
@@ -104,7 +105,7 @@ struct ACchannel {
 		endNodeTime = eventArray[currentEvent].timeVal;
 	}
 
-	float kP = 500.0;
+	float kP = 200.0;
 
 	void calculatePID() {
 		float temperature = thermistors[thermistorNo].temp;
@@ -139,7 +140,7 @@ struct ACchannel {
 		}
 		float difference = target - temperature;
 
-		onTime = 9600 - pgm_read_word_near(lookupTime + constrain(((int) (difference * kP)), 0, 1000));
+		onTime = 9600 - pgm_read_word_near(lookupTime + ((int) (constrain(difference, 0, 999.5/kP) * kP)));
 	}
 };
 
@@ -184,7 +185,7 @@ void updatePID() {
 }
 
 void loop() {
-	if (Serial.available() > 0) {   //new message is here
+	if (Serial.available() > 0) {
 		char function = Serial.read();
 		switch (function) {
 		case 'V': //get version
@@ -195,7 +196,7 @@ void loop() {
 			enforceSlope = (bool) Serial.readStringUntil(';').toInt();
 			break;
 		case 'S': //stop
-			started = false;	//TODO: proper reset method.
+			started = false;
 			break;
 		case 'T': //get temp
 			Serial.print(ELAPSED);
@@ -203,7 +204,7 @@ void loop() {
 			Serial.print(thermistors[0].temp);
 			Serial.print(";");
 			Serial.print(thermistors[1].temp);
-			//Serial.print(channels[].target);
+			//Serial.print(channels[0].target);
 			Serial.print(";");
 			break;
 		case 'Q':
@@ -215,7 +216,7 @@ void loop() {
 				channels[ch].totalEvents = Serial.readStringUntil(';').toInt();
 				for (int i = 0; i < channels[ch].totalEvents; i++) {
 					channels[ch].eventArray[i].timeVal = Serial.readStringUntil(';').toInt(); //TODO: Better transfer method.
-					channels[ch].eventArray[i].targetTemp = Serial.readStringUntil(';').toInt();
+					channels[ch].eventArray[i].targetTemp = Serial.readStringUntil(';').toFloat();
 				}
 				channels[ch].init();
 			}
