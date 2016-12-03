@@ -1,7 +1,7 @@
 function OvenPlot()
 {
-	this.TopLampPlot = new PIDPlot("Top Lamp", true, InterpolationMode.Digital);
-	this.BottomLampPlot = new PIDPlot("Bottom Lamp", true, InterpolationMode.Digital);
+	this.TopLampPlot = new PIDPlot("Top Lamp", true, InterpolationMode.Digital, "#00a6ed", "#44daff");
+	this.BottomLampPlot = new PIDPlot("Bottom Lamp", true, InterpolationMode.Digital, "#7fb800", "#bffb44");
 	
 	this.ClearAll = function()
 	{
