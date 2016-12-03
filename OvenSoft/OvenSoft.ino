@@ -35,16 +35,25 @@ struct Thermistor {
 			buffer[i] = analogRead(pin);
 		}
 		calculate();
-		//buffer[BUFFERSIZE - 1] = average; //to avoid rejecting samples if last reading is bad.
+		for (int i = 0; i < BUFFERSIZE; i++) {
+			buffer[i] = average;
+		}
 	}
+	int rejected = 0;
 	void update() {
 		int tempVal = analogRead(pin);
-		//if (abs(tempVal - buffer[BUFFERSIZE - 1]) < 10) {
+		if (abs(tempVal - buffer[BUFFERSIZE - 1]) < 10) {
+			rejected = 0;
 			for (int i = 0; i < BUFFERSIZE - 1; i++) {
 				buffer[i] = buffer[i + 1];
 			}
 			buffer[BUFFERSIZE - 1] = tempVal;
-		//}
+		} else {
+			rejected++;
+		}
+		if(rejected > 10){
+			forceInit();
+		}
 		calculate();
 	}
 };

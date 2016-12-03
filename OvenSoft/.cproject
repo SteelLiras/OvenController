@@ -21,8 +21,6 @@
 								<option id="it.baeyens.arduino.compiler.cpp.sketch.option.incpath.513775090" name="Include Paths (-I)" superClass="it.baeyens.arduino.compiler.cpp.sketch.option.incpath" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/OvenSoft/core/core}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/OvenSoft/core/variant}&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/OvenSoft/libraries/Wire}&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/OvenSoft/libraries/Wire/src}&quot;"/>
 								</option>
 								<inputType id="it.baeyens.arduino.compiler.cpp.sketch.input.423004602" name="CPP source files" superClass="it.baeyens.arduino.compiler.cpp.sketch.input"/>
 							</tool>
@@ -30,8 +28,6 @@
 								<option id="it.baeyens.arduino.compiler.c.sketch.option.incpath.887578696" name="Include Paths (-I)" superClass="it.baeyens.arduino.compiler.c.sketch.option.incpath" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/OvenSoft/core/core}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/OvenSoft/core/variant}&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/OvenSoft/libraries/Wire}&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/OvenSoft/libraries/Wire/src}&quot;"/>
 								</option>
 								<inputType id="it.baeyens.arduino.compiler.c.sketch.input.1754873865" name="C Source Files" superClass="it.baeyens.arduino.compiler.c.sketch.input"/>
 							</tool>
