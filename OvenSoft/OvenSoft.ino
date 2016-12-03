@@ -18,7 +18,7 @@ bool started = false;
 #define BUFFERSIZE 7
 
 struct Thermistor {
-	int pin;
+	unsigned char pin;
 	int buffer[BUFFERSIZE];
 	float temp = 0;
 	float average = 0;
@@ -32,13 +32,13 @@ struct Thermistor {
 	}
 	void forceInit() {
 		for (int i = 0; i < BUFFERSIZE; i++) {
-			buffer[i] = analogRead((unsigned char) A0);
+			buffer[i] = analogRead(pin);
 		}
 		calculate();
 		buffer[BUFFERSIZE - 1] = average; //to avoid rejecting samples if last reading is bad.
 	}
 	void update() {
-		int tempVal = analogRead((unsigned char) A0);
+		int tempVal = analogRead(pin);
 		if (abs(tempVal - buffer[BUFFERSIZE - 1]) < 10) {
 			for (int i = 0; i < BUFFERSIZE - 1; i++) {
 				buffer[i] = buffer[i + 1];
@@ -163,10 +163,10 @@ void setup() {
 	Serial.begin(115200);
 	attachInterrupt(digitalPinToInterrupt(2), zeroCrossing, RISING);
 
-	channels[0].pin = 7;
+	channels[0].pin = 6;
 	channels[0].thermistorNo = 0;
 	thermistors[0].pin = A0;
-	channels[1].pin = 6;
+	channels[1].pin = 7;
 	channels[1].thermistorNo = 1;
 	thermistors[1].pin = A1;
 }
@@ -200,9 +200,10 @@ void loop() {
 		case 'T': //get temp
 			Serial.print(ELAPSED);
 			Serial.print(";");
-			Serial.print(thermistors[0].average);
+			Serial.print(thermistors[0].temp);
 			Serial.print(";");
-			Serial.print(thermistors[1].average);
+			Serial.print(thermistors[1].temp);
+			//Serial.print(channels[].target);
 			Serial.print(";");
 			break;
 		case 'Q':
