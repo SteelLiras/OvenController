@@ -189,7 +189,7 @@ void updatePID() {
 		thermistors[i].update();
 	}
 	for (int i = 0; i < AC_CHANNEL_NR; i++) {
-		channels[i].calculatePID(); //FIXME
+		channels[i].calculatePID();
 	}
 }
 

@@ -1,5 +1,3 @@
 /OvenSoft/Release
 /OvenSoft/.ino.cpp
-/OvenSoft/.settings
-/OvenSoft/.settings/language.settings.xml
-/OvenSoft/.settings/org.eclipse.cdt.core.prefs
+/OvenSoft/.settings/*
