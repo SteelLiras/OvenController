@@ -101,7 +101,7 @@
 	
 	<style type="text/css">
 		canvas { 
-			margin:0; 
+			margin:0;
 			padding:0;
 			display:block;
 		} 
@@ -110,22 +110,26 @@
 			width:100%;
 			height:100%;
 		} 
-	</style>
+
+        .group-button-state {
+            background: green;
+            color: white;
+        }
+        .group-button-state:hover {
+            background: lightgreen;
+            color: #000000;
+        }
+        .group-button-state:active {
+            background: darkgreen;
+            color: #ffff00;
+        }
+        .group-button-state.active {
+            background: red !important;
+            color: #ffff00 !important;
+        }
+    </style>
 </head>
 <body onload="Initialize()">
-    <div data-role="dialog" id="dialog" class="padding20" data-close-button="true">
-        <h1>Settings</h1>
-		Snap to grid
-		<label class="switch" for="snapping">
-			<input onclick="plotManager.snapping = !plotManager.snapping;" checked id="snapping" type="checkbox">
-			<span class="check"></span>
-		</label>
-		Enforce slope
-		<label class="switch">
-			<input onclick="enforceSlope = !enforceSlope;" checked type="checkbox">
-			<span class="check"></span>
-		</label>
-    </div>
     <script>
         function showDialog(id)
 		{
@@ -133,6 +137,23 @@
             dialog.open();
         }
     </script>
+	<div class="app-bar" style="background-color: #555555;height:50px;">
+		<button class="large-button button danger block-shadow-danger text-shadow lighten loading-cube" style="margin-left:10px;margin-right:10px;" onclick="StartOven()">Start</button>
+		<button class="button danger" style="margin-left:10px;margin-right:10px;" onclick="Stop()">Stop</button>
+		<button class="button danger" style="margin-left:10px;margin-right:10px;" onclick="ClearAll()">Clear All</button>
+		<button class="button danger" style="margin-left:10px;margin-right:300px;" onclick="ClearReadout()">Clear Readout</button>
+		<span>Snap to grid
+		<label class="switch" for="snapping">
+			<input onclick="plotManager.snapping = !plotManager.snapping;" checked id="snapping" type="checkbox">
+			<span class="check"></span>
+		</label></span>
+		<span>Enforce slope
+		<label class="switch">
+			<input onclick="enforceSlope = !enforceSlope;" checked type="checkbox">
+			<span class="check"></span>
+		</label></span>
+		<span class="place-right" style="margin-right:20px;margin-top:5px;"><h4>Server Status: <font class="fg-green">Ready</font></h4></span>
+	</div>
 	<canvas id="canvas"></canvas>
 	<div data-role="charm" data-position="bottom" id="free-position-charm" id="settingsPanel">
 		<div class="grid" style="margin-right:25px;">
@@ -162,8 +183,8 @@
 							<span class="icon mif-microscope"></span>
 							<span class="title">Chart Scale</span>
 						</div>
-						<div class="content" style="height: 100px;padding:5px;">
-							<div class="content"  style="margin:auto;height: 100px;">
+						<div class="content" style="height: 100px;padding:25px;">
+							<div style="margin:auto;width:600px;">
 								Units Horizontal:
 								<div class="input-control text">
 									<input id="scaleX" type="text" onchange="UpdateScale()" value="600">
@@ -180,38 +201,15 @@
 					<div class="panel alert">
 						<div class="heading">
 							<span class="icon mif-cog"></span>
-							<span class="title">Options</span>
+							<span class="title">Lamp Select</span>
 						</div>
 						<div class="content"  style="height: 100px;padding:25px;">
-							<div style="margin:auto;width:600px;">
-								<button class="button rounded" onclick="ClearAll()">Clear All</button>
-								<button class="button rounded" onclick="ClearReadout()">Clear Readout</button>
-								<button class="button rounded" onclick="showDialog('#dialog')">Settings</button>
-								<button class="button rounded" onclick="Stop()">Stop</button>
-								<button class="large-button button danger block-shadow-danger text-shadow lighten loading-cube" onclick="StartOven()">Start</button>
+							<div style="margin:auto;width:300px;">
+								<div data-role="group" data-group-type="one-state" onChanged="plotManager.selectedLamp = index;" data-button-style="group-button-state">
+									<button style="width: 125px" class="button active">Top Lamp</button>
+									<button style="width: 125px" class="button">Bottom Lamp</button>
+								</div>
 							</div>
-						</div>
-					</div>
-				</div>
-			</div>
-			<div class="row">
-				<div class="cell">
-					<div class="panel alert collapsed" data-role="panel">
-						<div class="heading">
-							<span class="icon mif-cabinet"></span>
-							<span class="title">Plots</span>
-						</div>
-						<div class="content padding10">
-							<div class="listview list-type-icons" data-role="listview" id="groupList" data-on-list-click="plotManager.selectedLamp = parseInt(list.find('.list-title').text());">
-								<div class="list active">
-									<div style="background-color: #00a6ed;" class="list-icon"></div>
-									<span class="list-title">0</span>
-								</div>
-								<div class="list">
-									<div style="background-color: #7fb800;" class="list-icon"></div>
-									<span class="list-title">1</span>
-								</div>
-							</div><br />
 						</div>
 					</div>
 				</div>
