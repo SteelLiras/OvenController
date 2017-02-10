@@ -36,8 +36,8 @@ Helpers.GenerateTempLookup = function()
 
 Helpers.Distance = function(Vector1, Vector2)
 {
-	return Math.abs(Math.sqrt((Vector2.X - Vector1.X) * (Vector2.X - Vector1.X) 
-			- (Vector2.Y - Vector1.Y) * (Vector2.Y - Vector1.Y)));
+	return Math.sqrt(Math.abs((Vector2.X - Vector1.X) * (Vector2.X - Vector1.X) 
+			+ (Vector2.Y - Vector1.Y) * (Vector2.Y - Vector1.Y)));
 }
 
 Helpers.MulVec2 = function(Vector1, Vector2)

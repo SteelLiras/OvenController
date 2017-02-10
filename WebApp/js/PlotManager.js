@@ -60,15 +60,18 @@ function PlotManager(canvasElementId, OvenPlot, PlotRenderer)
 	
 		var clickedPoint = Helpers.GetClickCoordinates(e);
 
-		this.draggedPoint.Group.GetPoint(this.draggedPoint.Index).dragged = true;
-		this.draggedPoint.Group.SetPoint(this.draggedPoint.Index, plotRenderer.ScreenToGridPoint(clickedPoint, this.snapping));
+		var pointGroup = this.draggedPoint.Group;
+		
+		pointGroup.SetPoint(this.draggedPoint.Index, plotRenderer.ScreenToGridPoint(clickedPoint, this.snapping));
+		pointGroup.GetPoint(this.draggedPoint.Index).dragged = true;
+		pointGroup.Sort();
 
-		for	(var i=0;i<this.draggedPoint.Group.GetPointCount();i++)
+		for	(var i=0;i<pointGroup.GetPointCount();i++)
 		{
-			if (this.draggedPoint.Group.GetPoint(i).dragged)
+			if (pointGroup.GetPoint(i).dragged)
 			{
 				this.draggedPoint.Index = i;
-				delete this.draggedPoint.Group.GetPoint(i).dragged;
+				delete pointGroup.GetPoint(i).dragged;
 				break;
 			}
 		}

@@ -35,9 +35,19 @@ function PointGroup(name, interpolation, color, visibility, readonly, limit, flo
 		return this.points[index];
 	}
 	
+	this.UpdatePoint = function(index, point)
+	{
+		this.SetPoint(index, point);
+		this.Sort();
+	}
+	
 	this.SetPoint = function(index, point)
 	{
 		this.points[index] = point;
+	}
+	
+	this.Sort = function()
+	{
 		this.points.sort(function(a, b){return a.X - b.X});
 	}
 	
