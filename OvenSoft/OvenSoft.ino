@@ -70,7 +70,8 @@ struct event {
 
 struct ACchannel {
 	int pin;
-	int thermistorNo;bool channelEnabled = false;
+	int thermistorNo;
+	bool channelEnabled = false;
 
 	float target = 0;
 	bool notStarted = false;
@@ -209,7 +210,7 @@ void loop() {
 		switch (function) {
 		case 'V': //get version
 			Serial.print(POINTS);
-			Serial.print(":0:;"); //TODO: Finalize float support for temperature points.
+			Serial.print(":0:"); //TODO: Finalize float support for temperature points.
 			break;
 		case 'C': //change enforce
 			enforceSlope = (bool) Serial.readStringUntil(':').toInt();
