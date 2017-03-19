@@ -20,7 +20,7 @@
 	<script type="text/javascript">
 		var enforceSlope = true;
 	
-		var serverAddress = "http://192.168.1.15";
+		var serverAddress = "ws://192.168.1.15:81";
 		var server, ovenPlot, plotRenderer, plotManager; 
 
 		function Initialize()
@@ -28,6 +28,8 @@
 			Helpers.Initialize("canvas");
 			
 			server = new Server(serverAddress);
+			server.Connect();
+			
 			ovenPlot = new OvenPlot();
 		
 			plotRenderer = new PlotRenderer("canvas", ovenPlot);
@@ -38,25 +40,15 @@
 		
 		function StartOven()
 		{
-			server.SendConfig(enforceSlope, 
-			function() 
-			{
-				server.SendData(ovenPlot.TopLampPlot.userInputGroup, ovenPlot.BottomLampPlot.userInputGroup,
-				function() { GetTemperature(); });
-			});
+			server.Start(enforceSlope, ovenPlot.TopLampPlot.userInputGroup, ovenPlot.BottomLampPlot.userInputGroup,
+				function() { alert("Oven started."); });
 		}
 		
-		function GetTemperature()
+		function PlotTemp(time, tempTop, tempBottom)
 		{
-			server.GetTemperature(function(time, tempTop, tempBottom)
-			{
-				ovenPlot.AddReadout(time, plotRenderer.limitY - tempTop, plotRenderer.limitY - tempBottom);
-				plotRenderer.UpdateRenderer();
-			});
-			
-			//TODO Configurable intervals
-			if (server.isOvenRunning)
-				setTimeout(GetTemperature, 500);
+			console.log(time + "," + tempTop + "," + tempBottom);
+			ovenPlot.AddReadout(time, plotRenderer.limitY - tempTop, plotRenderer.limitY - tempBottom);
+			plotRenderer.UpdateRenderer();
 		}
 		
 		function UpdateScale()
@@ -112,20 +104,21 @@
 		} 
 
         .group-button-state {
-            background: green;
-            color: white;
+            background: #DDDDDD;
+            color: black;
+			border-radius: 15px;
         }
         .group-button-state:hover {
-            background: lightgreen;
+            background: lightred;
             color: #000000;
         }
         .group-button-state:active {
-            background: darkgreen;
+            background: darkred;
             color: #ffff00;
         }
         .group-button-state.active {
-            background: red !important;
-            color: #ffff00 !important;
+            background: lightred !important;
+            color: black !important;
         }
     </style>
 </head>
@@ -205,9 +198,9 @@
 						</div>
 						<div class="content"  style="height: 100px;padding:25px;">
 							<div style="margin:auto;width:300px;">
-								<div data-role="group" data-group-type="one-state" onChanged="plotManager.selectedLamp = index;" data-button-style="group-button-state">
-									<button style="width: 125px" class="button active">Top Lamp</button>
-									<button style="width: 125px" class="button">Bottom Lamp</button>
+								<div data-role="group" data-group-type="one-state" data-button-style="group-button-state">
+									<button style="width: 125px" onclick="plotManager.selectedLamp = 0;" class="button active">Top Lamp</button>
+									<button style="width: 125px" onclick="plotManager.selectedLamp = 1;" class="button">Bottom Lamp</button>
 								</div>
 							</div>
 						</div>

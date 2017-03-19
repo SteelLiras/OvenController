@@ -1,15 +1,17 @@
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
+#include <WebSocketsServer.h>
 #include <ESP8266mDNS.h>
 #include <FS.h>
 #include <SoftwareSerial.h>
 
-const char* ssid = "REDACTED";
-const char* password = "REDACTED";
+const char* ssid = "DOM_13";
+const char* password = "Az914qLA";
 //const char* host = "esp8266fs";
 
 ESP8266WebServer server(80);
+WebSocketsServer webSocket = WebSocketsServer(81);
 SoftwareSerial softSerial(4, 5); //RX, TX
 //holds the current upload
 /*File fsUploadFile;
@@ -146,6 +148,51 @@ void handleFileList() {
   output += "]";
   server.send(200, "text/json", output);
 }*/
+uint8_t clientIP;
+String currentPayload = "";
+char cmdLetter = 'x';
+
+void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) 
+{
+    switch(type)
+    {
+        case WStype_DISCONNECTED:
+            Serial.printf("[%u] Disconnected!\n", num);
+            break;
+        case WStype_CONNECTED:
+            {
+                IPAddress ip = webSocket.remoteIP(num);
+                Serial.printf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload); 
+                clientIP = num;
+            }
+            break;
+        case WStype_TEXT:
+        {
+            Serial.printf("[%u] get Text: %s\n", num, payload);
+            
+            String str = (char*)payload;
+            String cmd = String(str[0]) + ";";
+            softSerial.print(cmd);
+            Serial.println("Sent cmd: " + cmd);
+            currentPayload = str;
+            cmdLetter = cmd[0];
+            
+            // send message to client
+            //webSocket.sendTXT(num, "message here");
+
+            // send data to all connected clients
+            // webSocket.broadcastTXT("message here");
+        }
+            break;
+        case WStype_BIN:
+            Serial.printf("[%u] get binary length: %u\n", num, length);
+            hexdump(payload, length);
+
+            // send message to client
+            // webSocket.sendBIN(num, payload, length);
+            break;
+    }
+}
 
 void handleGetTemperature()
 {
@@ -212,7 +259,7 @@ void setup(void)
 {
   Serial.begin(115200);
   softSerial.begin(115200);
-
+  Serial.print("TEST");
   SPIFFS.begin();
 
   //WIFI INIT
@@ -231,19 +278,19 @@ void setup(void)
     delay(500);
   }*/
   
-  Dir dir = SPIFFS.openDir("/");
+ /* Dir dir = SPIFFS.openDir("/");
   while (dir.next()) 
   {    
     String fileName = dir.fileName();
     size_t fileSize = dir.fileSize();
     Serial.printf("FS File: %s, size: %s\n", fileName.c_str(), formatBytes(fileSize).c_str());
   }
-
+*/
   //Serial.print("Connected! IP address: ");
  // Serial.println(WiFi.localIP());
 
  // MDNS.begin(host);
-  //Serial.print("Open http://");
+  //Serial.print("Open http://"); 
   //Serial.print(host);
   //Serial.println(".local/edit to see the file browser");
   
@@ -263,7 +310,10 @@ void setup(void)
   //second callback handles file uploads at that location
   //server.on("/edit", HTTP_POST, [](){ server.send(200, "text/plain", ""); }, handleFileUpload);
 
-  server.on("/versionInfo", HTTP_GET, handleVersionInfo);
+  webSocket.begin();
+  webSocket.onEvent(webSocketEvent);
+
+/*  server.on("/versionInfo", HTTP_GET, handleVersionInfo);
   server.on("/sendConfig", HTTP_GET, handleSendConfig);
   server.on("/getTemp", HTTP_GET, handleGetTemperature);
   server.on("/start", HTTP_GET, handleStart);
@@ -271,15 +321,15 @@ void setup(void)
   server.on("/app", HTTP_GET, [](){
       if(!handleFileRead("/index.html")) 
         server.send(404, "text/plain", "FileNotFound");
-    });
+    });*/
 
   //called when the url is not defined here
   //use it to load content from SPIFFS
-  server.onNotFound([](){
+  /*server.onNotFound([](){
     if(!handleFileRead(server.uri()))
       server.send(404, "text/plain", "Unknown operation.");
   });
-
+*/
 // server.onNotFound([](){ server.send(404, "text/plain", "Unknown operation."); });
 
   //get heap status, analog input value and all GPIO statuses in one json call
@@ -294,9 +344,72 @@ void setup(void)
   });*/
   
   server.begin();
+  Serial.print("Init done.");
+}
+
+String driverData = "";
+bool awaitAnswer = false;
+
+void handleDriverData()
+{
+    if (softSerial.available())
+    {
+      String data = softSerial.readStringUntil(';');
+      Serial.println("Received from Arduino: " + data);
+
+      bool reject = false;
+      for (int i=0;i<data.length();i++)
+      {
+        if ((data[i] < 33) || (data[i] > 122))
+        {
+          reject = true;
+          break;
+        }
+      }
+
+      if (reject)
+        return;
+      
+      if ((data == "@") && (!awaitAnswer))
+      {
+        softSerial.print(currentPayload.substring(2));
+        Serial.println("Sent params: " + currentPayload.substring(2));
+        awaitAnswer = true;
+      }
+      else if (awaitAnswer)
+      {
+        String resp = String(cmdLetter) + ":" + data;
+        Serial.println("Sent response: " + resp);
+        webSocket.sendTXT(clientIP, resp);
+        awaitAnswer = false;
+      }
+      else
+      {
+        Serial.println("Forwarded: " + data);
+        webSocket.sendTXT(clientIP, data);
+      }
+      
+      
+      //String incomingByte = String((char)softSerial.read());
+      //webSocket.sendTXT(clientIP, incomingByte);
+    /*  char incomingByte = softSerial.read();
+      Serial.print(incomingByte);
+      if (incomingByte == ';')
+      {
+        webSocket.sendTXT(clientIP, driverData);
+        driverData = "";
+        Serial.print("\n");
+      }
+      else
+        driverData += incomingByte;*/
+    } 
 }
 
 void loop(void)
 {
+ // if (softSerial.available() > 0)
+   // Serial.print(softSerial.read());
+  handleDriverData();
   server.handleClient();
+  webSocket.loop();
 }

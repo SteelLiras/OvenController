@@ -4,8 +4,73 @@ function Server(ip)
 	this.maxPoints = 0;
 	this.floatSupport = false;
 	this.isOvenRunning = false;
+	this.webSocket;
+	this.isOpen = false;
+	this.tempCallback = null;
 
-	this.SendConfig = function(enforceSlope, callback)
+	this.Connect = function()
+	{
+		this.webSocket = new WebSocket(this.serverAddress);
+		
+		this.webSocket.onopen = function(evt) { server.OnOpen(evt) };
+		this.webSocket.onmessage = function(evt) { server.OnMessage(evt); };
+		this.webSocket.onclose = function(evt) { server.OnClose(evt); };
+	}
+	
+	this.SendMessage = function(msg)
+	{
+		if (this.webSocket)
+			this.webSocket.send(msg);
+	}
+	
+	this.OnClose = function(evt)
+	{
+		alert("Connection terminated.");
+	}
+	
+	this.OnMessage = function(evt)
+	{
+		var msg = evt.data;
+
+		if (msg[0] == "V")
+			server.SetHardwareConfig(msg);
+		else if (msg[0] == "C")
+			server.SendData(this.pointGroupTop, this.pointGroupBottom);
+		else if (msg[0] == "Q")
+		{
+			this.isOvenRunning = true;
+			this.callback();
+		}
+		else if (msg[0] == "T")
+		{
+			var temps = this.GetTemperature(msg);
+			PlotTemp(temps.Time, temps.Top, temps.Bottom);
+		}
+		else if (msg[0] == "S")
+		{
+			isOvenRunning = false;
+			alert("Oven stopped");
+		}
+	}
+	
+	this.OnOpen = function(evt)
+	{
+		alert("Connection open ...");
+		this.isOpen = true;
+		this.GetVersionInfo();
+	}
+	
+	this.Start = function(enforceSlope, topGroup, bottomGroup, callback)
+	{
+		alert("oven starting");
+		this.pointGroupTop = topGroup;
+		this.pointGroupBottom = bottomGroup;
+		this.callback = callback;
+	
+		this.SendConfig(enforceSlope);
+	}
+	
+	this.SendConfig = function(enforceSlope)
 	{
 		if (this.isOvenRunning)
 		{
@@ -15,20 +80,17 @@ function Server(ip)
 		
 		console.log("Send config...");
 		console.log("Enforce Slope: " + ((enforceSlope) ? "1" : "0"));
-		
-		$.get(this.serverAddress + "/sendConfig?fs=" + ((enforceSlope) ? "1" : "0"), 
-			function(data, status) { if (data == "OK") callback(); })
-			.fail(function() { console.log("Send Config failed."); });
+
+		this.SendMessage("C:" + ((enforceSlope) ? "1" : "0") + ":");
 	}
 	
 	this.GetVersionInfo = function()
 	{
 		console.log("Get Version Info...");
-		$.get(this.serverAddress + "/versionInfo", function(data) { server.SetHardwareConfig(data); })
-		.fail(function() { console.log("Get Version failed."); });
+		this.SendMessage("V:");
 	}
 	
-	this.GetTemperature = function(callback)
+	this.GetTemperature = function(data)
 	{
 		if (!this.isOvenRunning)
 		{
@@ -36,30 +98,33 @@ function Server(ip)
 			return;
 		}
 		
-		$.get(this.serverAddress + "/getTemp", 
-			function(data, status)
-			{
-				var time = parseFloat(data.split(';')[0]);
-				var adcTop = parseFloat(data.split(';')[1]);
-				var adcBottom = parseFloat(data.split(';')[2]);
-				
-				console.log("Get Temperature: Time: " + time + " ADC Top: " + adcTop + " ADC Bottom: " + adcBottom);
-				
-				if ((adcTop < 0) || (adcBottom < 0) || (time < 0) || isNaN(adcTop) || isNaN(adcBottom) || isNaN(time))
-				{
-					console.log("Get Temperature failed: One of the pooled values is negative or NaN.");
-					return;
-				}
-				
-				var resultTime = time / 1000;
-				/*var resultTemperatureTop = Helpers.ADCToTemperature(adcTop);
-				var resultTemperatureBottom = Helpers.ADCToTemperature(adcBottom);*/
-				
-				callback(resultTime, adcTop, adcBottom);
-			}).fail(function() { console.log("Get Temp failed."); });
+		var time = parseFloat(data.split(':')[1]);
+		var adcTop = parseFloat(data.split(':')[2]);
+		var adcBottom = parseFloat(data.split(':')[3]);
+		
+		console.log("Get Temperature: Time: " + time + " ADC Top: " + adcTop + " ADC Bottom: " + adcBottom);
+		
+		if ((adcTop < 0) || (adcBottom < 0) || (time < 0) || isNaN(adcTop) || isNaN(adcBottom) || isNaN(time))
+		{
+			console.log("Get Temperature failed: One of the pooled values is negative or NaN.");
+			return;
+		}
+		
+		var resultTime = time / 1000;
+
+		return 
+		{
+			Time: resultTime,
+			Top: adcTop,
+			Bottom: adcBottom
+		};
 	}
 
-	this.SendData = function(pointGroupTop, pointGroupBottom, callback)
+	this.pointGroupTop = null;
+	this.pointGroupBottom = null;
+	this.callback = null;
+	
+	this.SendData = function(pointGroupTop, pointGroupBottom)
 	{
 		if (this.isOvenRunning)
 		{
@@ -68,37 +133,25 @@ function Server(ip)
 		}
 		
 		console.log("Send data...");
-		
+
 		var dataStringTop = this.CreateDataString(pointGroupTop);
 		var dataStringBottom = this.CreateDataString(pointGroupBottom);
-		var dataString = "2;" + dataStringTop + dataStringBottom;
+		var dataString = "2:" + dataStringTop + dataStringBottom;
 		
 		console.log("Data String:" + dataString);
 		
-		$.get(this.serverAddress + "/start?data=" + dataString, 
-			function(data, status) 
-			{
-				if (data == "OK")
-				{
-					server.isOvenRunning = true;
-					callback();
-				}
-				
-			}).fail(function() { console.log("Send Data failed."); });
+		this.SendMessage("Q:" + dataString);
 	}
 			
 	this.Stop = function()
 	{
 		console.log("Stopping...");
-		$.get(this.serverAddress + "/stop", function (data)
-		{
-			server.isOvenRunning = false;
-		}).fail(function() { console.log("There is no stopping."); });
+		this.SendMessage("S:");
 	}
 	
 	this.CreateDataString = function(pointGroup)
 	{
-		var dataString = pointGroup.GetPointCount() + ";";
+		var dataString = pointGroup.GetPointCount() + ":";
 			
 		for (var i=0;i<pointGroup.GetPointCount();i++)
 		{
@@ -106,7 +159,7 @@ function Server(ip)
 			var temp = plotRenderer.limitY - point.Y;
 			
 			//Temperature is converted to int!!!
-			dataString += ((point.X * 1000) | 0) + ";" + (temp | 0) + ";";
+			dataString += ((point.X * 1000) | 0) + ":" + (temp | 0) + ":";
 		}
 		
 		return dataString;
@@ -114,13 +167,11 @@ function Server(ip)
 	
 	this.SetHardwareConfig = function(versionInfoData)
 	{
-		var dataSplit = versionInfoData.split(";");
-		
-		this.maxPoints = parseInt(dataSplit[0]);
-		this.floatSupport = (dataSplit[1] == "1");
+		var dataSplit = versionInfoData.split(":");
+
+		this.maxPoints = parseInt(dataSplit[1]);
+		this.floatSupport = (dataSplit[2] == "1");
 		
 		console.log("Set hardware config: maxPoints=" + this.maxPoints + " floatSupport=" + this.floatSupport + ".");
 	}	
-	
-	this.GetVersionInfo();
 }
