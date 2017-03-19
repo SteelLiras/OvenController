@@ -51,7 +51,7 @@ struct Thermistor {
 		} else {
 			rejected++;
 		}
-		if(rejected > 10){
+		if (rejected > 10) {
 			forceInit();
 		}
 		calculate();
@@ -70,8 +70,7 @@ struct event {
 
 struct ACchannel {
 	int pin;
-	int thermistorNo;
-	bool channelEnabled = false;
+	int thermistorNo;bool channelEnabled = false;
 
 	float target = 0;
 	bool notStarted = false;
@@ -161,7 +160,6 @@ void zeroCrossing() {
 	zeroCrossingTime = micros();
 }
 
-
 void setup() {
 
 	pinMode(6, OUTPUT); //TRIAC
@@ -183,7 +181,6 @@ void setup() {
 
 int debugV = 0;
 
-
 void updatePID() {
 	for (int i = 0; i < THERMISTOR_CHANNEL_NR; i++) {
 		thermistors[i].update();
@@ -193,39 +190,43 @@ void updatePID() {
 	}
 }
 
+void sendTemp() {
+	Serial.print("T:");
+	Serial.print(ELAPSED);
+	Serial.print(":");
+	Serial.print(thermistors[0].temp);
+	Serial.print(":");
+	Serial.print(thermistors[1].temp);
+	Serial.print(":;");
+}
+
+int iter = 0;
+
 void loop() {
 	if (Serial.available() > 0) {
-		char function = Serial.read();
+		char function = Serial.readStringUntil(';')[0];
+		Serial.print("@;");
 		switch (function) {
 		case 'V': //get version
 			Serial.print(POINTS);
-			Serial.print(";0;"); //TODO: Finalize float support for temperature points.
+			Serial.print(":0:;"); //TODO: Finalize float support for temperature points.
 			break;
 		case 'C': //change enforce
-			enforceSlope = (bool) Serial.readStringUntil(';').toInt();
+			enforceSlope = (bool) Serial.readStringUntil(':').toInt();
 			break;
 		case 'S': //stop
 			started = false;
-			break;
-		case 'T': //get temp
-			Serial.print(ELAPSED);
-			Serial.print(";");
-			Serial.print(thermistors[0].temp);
-			Serial.print(";");
-			Serial.print(thermistors[1].temp);
-			//Serial.print(channels[0].target);
-			Serial.print(";");
 			break;
 		case 'Q':
 			for (int i = 0; i < THERMISTOR_CHANNEL_NR; i++) {
 				thermistors[i].forceInit();
 			}
-			int activeChannels = Serial.readStringUntil(';').toInt();
+			int activeChannels = Serial.readStringUntil(':').toInt();
 			for (int ch = 0; ch < activeChannels; ch++) {
-				channels[ch].totalEvents = Serial.readStringUntil(';').toInt();
+				channels[ch].totalEvents = Serial.readStringUntil(':').toInt();
 				for (int i = 0; i < channels[ch].totalEvents; i++) {
-					channels[ch].eventArray[i].timeVal = Serial.readStringUntil(';').toInt(); //TODO: Better transfer method.
-					channels[ch].eventArray[i].targetTemp = Serial.readStringUntil(';').toFloat();
+					channels[ch].eventArray[i].timeVal = Serial.readStringUntil(':').toInt(); //TODO: Better transfer method.
+					channels[ch].eventArray[i].targetTemp = Serial.readStringUntil(':').toFloat();
 				}
 				channels[ch].init();
 			}
@@ -233,10 +234,15 @@ void loop() {
 			started = true;
 			break;
 		}
+		Serial.print(";");
 	}
 	if (started && justCrossedZero) {
 		justCrossedZero = false;
 		updatePID();
+		if(iter == 0){
+			sendTemp();
+		}
+		iter = (iter + 1) % 10; //TMP
 		for (int i = 0; i < AC_CHANNEL_NR; i++) {
 			channels[i].notStarted = true;
 		}
