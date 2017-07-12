@@ -27,7 +27,7 @@
 		{
 			Helpers.Initialize("canvas");
 			
-			server = new Server(serverAddress);
+			server = new Server(serverAddress, ServerStatusUpdated);
 			server.Connect();
 			
 			ovenPlot = new OvenPlot();
@@ -36,6 +36,18 @@
 			UpdateScale();
 			
 			plotManager = new PlotManager("canvas", ovenPlot, plotRenderer);
+		}
+		
+		function ServerStatusUpdated(evt)
+		{
+			$("#ServerStatusLabel").text(server.serverStatus);
+			
+			if ((server.serverStatus == server.Status.Failed) || (server.serverStatus == server.Status.NotConnected))
+				$("#ServerStatusLabel").css("color", "red");
+			else if (server.serverStatus == server.Status.Ready)
+				$("#ServerStatusLabel").css("color", "green");
+			else if (server.serverStatus == server.Status.Connecting)
+				$("#ServerStatusLabel").css("color", "cyan");
 		}
 		
 		function StartOven()
@@ -130,7 +142,7 @@
             dialog.open();
         }
     </script>
-	<div class="app-bar" style="background-color: #555555;height:50px;">
+	<div class="app-bar" style="background-color: #555555;height:50px;width:100%;margin:0;">
 		<button class="large-button button danger block-shadow-danger text-shadow lighten loading-cube" style="margin-left:10px;margin-right:10px;" onclick="StartOven()">Start</button>
 		<button class="button danger" style="margin-left:10px;margin-right:10px;" onclick="Stop()">Stop</button>
 		<button class="button danger" style="margin-left:10px;margin-right:10px;" onclick="ClearAll()">Clear All</button>
@@ -145,7 +157,7 @@
 			<input onclick="enforceSlope = !enforceSlope;" checked type="checkbox">
 			<span class="check"></span>
 		</label></span>
-		<span class="place-right" style="margin-right:20px;margin-top:5px;"><h4>Server Status: <font class="fg-green">Ready</font></h4></span>
+		<span class="place-right" style="margin-right:20px;margin-top:5px;"><h4>Server Status: <label id="ServerStatusLabel">Ready</label></h4></span>
 	</div>
 	<canvas id="canvas"></canvas>
 	<div data-role="charm" data-position="bottom" id="free-position-charm" id="settingsPanel">

@@ -1,16 +1,22 @@
-function Server(ip)
+function Server(ip, statusChangedCallback)
 {
+	this.Status = { NotConnected: "Disconnected", Connecting : "Connecting...", Ready : "Ready", Failed : "Failed"  };
+	
 	this.serverAddress = ip;
 	this.maxPoints = 0;
 	this.floatSupport = false;
 	this.isOvenRunning = false;
 	this.webSocket;
-	this.isOpen = false;
 	this.tempCallback = null;
+	this.serverStatus = this.Status.NotConnected;
+	this.statusChangedCallback = statusChangedCallback;
 
 	this.Connect = function()
 	{
 		this.webSocket = new WebSocket(this.serverAddress);
+		
+		this.serverStatus = this.Status.Connecting;
+		this.statusChangedCallback(null);
 		
 		this.webSocket.onopen = function(evt) { server.OnOpen(evt) };
 		this.webSocket.onmessage = function(evt) { server.OnMessage(evt); };
@@ -25,7 +31,12 @@ function Server(ip)
 	
 	this.OnClose = function(evt)
 	{
-		alert("Connection terminated.");
+		if (evt.code == 1000)
+			this.serverStatus = this.Status.NotConnected;
+		else
+			this.serverStatus = this.Status.Failed;
+		
+		this.statusChangedCallback(evt);
 	}
 	
 	this.OnMessage = function(evt)
@@ -55,8 +66,9 @@ function Server(ip)
 	
 	this.OnOpen = function(evt)
 	{
-		alert("Connection open ...");
-		this.isOpen = true;
+		this.serverStatus = this.Status.Ready;
+		this.statusChangedCallback(evt);
+		
 		this.GetVersionInfo();
 	}
 	
@@ -112,12 +124,7 @@ function Server(ip)
 		
 		var resultTime = time / 1000;
 
-		return 
-		{
-			Time: resultTime,
-			Top: adcTop,
-			Bottom: adcBottom
-		};
+		return { Time: resultTime, Top: adcTop, Bottom: adcBottom };
 	}
 
 	this.pointGroupTop = null;
